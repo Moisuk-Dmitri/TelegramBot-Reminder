@@ -26,15 +26,15 @@ import static java.util.Objects.nonNull;
 public class TelegramBotUpdatesListener implements UpdatesListener {
 
     private final EventRepository eventRepository;
+    private final TelegramBot telegramBot;
 
     private Logger logger = LoggerFactory.getLogger(TelegramBotUpdatesListener.class);
 
-    @Autowired
-    private TelegramBot telegramBot;
+    private final String reminderPattern = "(\\d{2}\\.\\d{2}\\.\\d{4}\\s\\d{2}:\\d{2})(\\s+)(.+)";
 
-    @Autowired
-    public TelegramBotUpdatesListener(EventRepository eventRepository) {
+    public TelegramBotUpdatesListener(EventRepository eventRepository, TelegramBot telegramBot) {
         this.eventRepository = eventRepository;
+        this.telegramBot = telegramBot;
     }
 
     @PostConstruct
@@ -47,51 +47,40 @@ public class TelegramBotUpdatesListener implements UpdatesListener {
         updates.forEach(update -> {
             logger.info("Processing update: {}", update);
 
-            if (update.message().text().equals("/start")) {
-                SendMessage sendMessage = new SendMessage(update.message().chat().id(),
+            String messageText = update.message().text();
+            Long chatId = update.message().chat().id();
+
+            if (messageText.isEmpty()) {
+                logger.error("Empty message");
+            } else if (messageText.equals("/start")) {
+                sendMessage(chatId,
                         "Введите информацию для напоминания в формате:\n" +
-                                "дд.мм.гггг чч:мм {текст напоминания}");
-                telegramBot.execute(sendMessage);
-            } else if (Pattern.matches("(\\d{2}\\.\\d{2}\\.\\d{4}\\s\\d{2}:\\d{2})(\\s+)(.+)", update.message().text())) {
-                String eventDateTimeString = update.message().text().substring(0, 16);
+                        "дд.мм.гггг чч:мм {текст напоминания}");
+            } else if (Pattern.matches(reminderPattern, messageText)) {
+                String eventDateTimeString = messageText.substring(0, 16);
                 LocalDateTime eventDateTime = LocalDateTime.parse(eventDateTimeString, DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm"));
-                String eventText = update.message().text().substring(17);
+                String eventText = messageText.substring(17);
 
                 Event event = new Event();
                 event.setEventDate(eventDateTime);
                 event.setEventText(eventText);
-                event.setChatId(update.message().chat().id());
+                event.setChatId(chatId);
 
                 eventRepository.save(event);
 
-                SendMessage sendMessage = new SendMessage(update.message().chat().id(),
+                sendMessage(chatId,
                         "Напоминание сохранено");
-                telegramBot.execute(sendMessage);
             } else {
-                SendMessage sendMessage = new SendMessage(update.message().chat().id(),
+                sendMessage(chatId,
                         "Неправильный формат напоминания");
-                telegramBot.execute(sendMessage);
             }
         });
         return UpdatesListener.CONFIRMED_UPDATES_ALL;
     }
 
-    @Scheduled(cron = "${telegram.bot.scheduledCronExpression}")
-    public void remind() {
-        LocalDateTime dateTime_curr = LocalDateTime.now().truncatedTo(ChronoUnit.MINUTES);
-        List<Event> eventList = eventRepository.findByEventDate(dateTime_curr);
-
-        if (!eventList.isEmpty()) {
-            eventList.forEach(event -> {
-                logger.info("Processing event: {}", event);
-
-                SendMessage sendMessage = new SendMessage(event.getChatId(),
-                        event.getEventText());
-                telegramBot.execute(sendMessage);
-
-                eventRepository.delete(event);
-            });
-        }
+    public void sendMessage(Long chatId, String text) {
+        SendMessage sendMessage = new SendMessage(chatId,
+                text);
+        telegramBot.execute(sendMessage);
     }
-
 }

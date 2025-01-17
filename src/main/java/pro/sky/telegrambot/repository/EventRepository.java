@@ -11,7 +11,6 @@ import java.util.List;
 @Repository
 public interface EventRepository extends JpaRepository<Event, Long> {
 
-//    @Query(value = "SELECT * FROM event WHERE event_date = localDateTime", nativeQuery = true)
-    public List<Event> findByEventDate(LocalDateTime eventDate);
+    List<Event> findByEventDate(LocalDateTime eventDate);
 
 }

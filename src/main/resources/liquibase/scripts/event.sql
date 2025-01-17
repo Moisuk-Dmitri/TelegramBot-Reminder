@@ -2,16 +2,12 @@
 
 -- changeset dmitri:1
 CREATE TABLE events (
-    id SERIAL,
-    chat_id TEXT,
-    event_text TEXT,
-    event_date DATE
+    id BIGSERIAL PRIMARY KEY,
+    chat_id TEXT not null,
+    event_text TEXT not null,
+    event_date timestamp not null
 )
 
--- changeset dmitri:2
-ALTER TABLE event
-ADD PRIMARY KEY (id)
-
---changeset dmitri:3
-ALTER TABLE event
-ALTER COLUMN event_date TYPE timestamp
+-- changeset dmitry:2
+ALTER TABLE events
+ALTER COLUMN chat_id TYPE BIGINT USING chat_id::bigint
